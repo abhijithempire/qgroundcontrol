@@ -14,10 +14,10 @@ Item {
     width:  parent.width
     height: ScreenTools.toolbarHeight
 
-    property var    _activeVehicle:     QGroundControl.multiVehicleManager.activeVehicle
+    property var    _activeVehicle:      QGroundControl.multiVehicleManager.activeVehicle
     property bool   _communicationLost: _activeVehicle ? _activeVehicle.vehicleLinkManager.communicationLost : false
     property color  _mainStatusBGColor: qgcPal.brandPrimary
-    property real   _leftRightMargin:   ScreenTools.defaultFontPixelWidth * 0.75
+    property real   _leftRightMargin:    ScreenTools.defaultFontPixelWidth * 0.75
     property var    _guidedController:  globals.guidedControllerFlyView
 
     function dropMainStatusIndicatorTool() {
@@ -51,7 +51,6 @@ Item {
                     gradient: Gradient {
                         orientation: Gradient.Horizontal
                         GradientStop { position: 0; color: _mainStatusBGColor }
-                        //GradientStop { position: qgcButton.x + qgcButton.width; color: _mainStatusBGColor }
                         GradientStop { position: 1; color: qgcPal.window }
                     }
                 }
@@ -102,11 +101,42 @@ Item {
                         Layout.fillHeight:  true
                         visible:            _activeVehicle
                     }
+
+                    // ===================================================
+                    // AGRICULTURAL SPRINKLER PUMP CONTROL BUTTON
+                    // ===================================================
+                    QGCButton {
+                        id:                 sprinklerButton
+                        text:               sprinklerActive ? qsTr("PUMP: ON") : qsTr("PUMP: OFF")
+                        visible:            _activeVehicle !== null
+                        Layout.fillHeight:  true
+
+                        property bool sprinklerActive: false
+                        property int  auxChannel:      9     // Servo Channel 9 (AUX 1 on Pixhawk)
+                        property int  pwmOn:           1900  // High PWM (Pump ON)
+                        property int  pwmOff:          1100  // Low PWM (Pump OFF)
+
+                        onClicked: {
+                            if (!_activeVehicle) return
+                            sprinklerActive = !sprinklerActive
+                            var targetPwm = sprinklerActive ? pwmOn : pwmOff
+
+                            // Send MAV_CMD_DO_SET_SERVO (Command 183) over MAVLink
+                            _activeVehicle.sendMavCommand(
+                                _activeVehicle.defaultComponentId,
+                                183,        // MAV_CMD_DO_SET_SERVO
+                                true,       // Show error alert on UI if command fails
+                                auxChannel, // Param 1: Servo Channel
+                                targetPwm,  // Param 2: PWM Value
+                                0, 0, 0, 0, 0
+                            )
+                        }
+                    }
+                    // ===================================================
                 }
             }
             Item {
                 id:     centerPanel
-                // center panel takes up all remaining space in toolbar between left and right panels
                 width:  Math.max(guidedActionConfirm.visible ? guidedActionConfirm.width : 0, control.width - (leftPanel.width + rightPanel.width))
                 height: parent.height
 
@@ -143,8 +173,6 @@ Item {
         }
     }
 
-    // The guided action message display is outside of the GuidedActionConfirm control so that it doesn't end up as
-    // part of the Flickable
     Rectangle {
         id:                         guidedActionMessageDisplay
         anchors.top:                control.bottom
@@ -179,9 +207,5 @@ Item {
             interval:       4000
             onTriggered:    messageOpacityAnimation.start()
         }
-    }
-
-    ParameterDownloadProgress {
-        anchors.fill: parent
     }
 }
